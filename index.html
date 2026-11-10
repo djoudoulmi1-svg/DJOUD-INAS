@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101021">
+<title>هدية إلى إيناس</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700&display=swap');
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 100%,#593b5d 0,transparent 48%),linear-gradient(160deg,#11101f,#25192e);color:#fbf1e8;font-family:Cairo,Arial,sans-serif}.gate{width:min(100%,480px);padding:42px 30px;text-align:center;border:1px solid #f2c8d344;border-radius:28px;background:#ffffff0b;box-shadow:0 18px 80px #0005;backdrop-filter:blur(8px)}.moon{width:78px;height:78px;margin:0 auto 18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8e8,#d8b9c7 68%,#9d85a1);box-shadow:0 0 48px #efcfe155}.eyebrow{color:#efcf9b;font-size:13px;letter-spacing:.08em}h1{font:700 42px/1.4 Amiri,serif;margin:2px 0 6px}p{color:#d9cfda;margin:0 0 22px}.field{display:flex;gap:8px}input{min-width:0;flex:1;padding:12px 15px;border:1px solid #ffffff36;border-radius:14px;background:#0e0d19;color:#fff;text-align:center;font:500 16px Cairo,Arial,sans-serif;outline:none}input:focus{border-color:#f3aec4}button{padding:11px 18px;border:0;border-radius:14px;background:#edb8cb;color:#261927;font:700 15px Cairo,Arial,sans-serif;cursor:pointer}button:hover{background:#f6cfdb}.hint{margin-top:17px;font-size:13px;color:#cbbdcc}.hint summary{cursor:pointer;color:#e6c9a1}.hint p{margin:8px 0 0;font-size:14px;color:#f0d7e1}#status{min-height:25px;margin:13px 0 0;font-size:13px;color:#ffd1d8}.small{margin-top:20px;color:#a99ead;font-size:11px}
+</style>
+</head>
+<body>
+<main class="gate">
+  <div class="moon" aria-hidden="true"></div>
+  <div class="eyebrow">هدية صغيرة… لذكرى كبيرة</div>
+  <h1>إلى إيناس</h1>
+  <p>أدخلي كلمة السر لتفتحي حكايتنا.</p>
+  <form id="unlock-form">
+    <div class="field"><input id="password" type="password" autocomplete="off" placeholder="كلمة السر" aria-label="كلمة السر" required><button type="submit">افتحي الهدية</button></div>
+  </form>
+  <details class="hint"><summary>تلميح صغير</summary><p>الموقع الذي بسببه تلاقينا</p></details>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div class="small">11 · 11 · 2026</div>
+</main>
+<script>
+const decodeBase64=value=>Uint8Array.from(atob(value),char=>char.charCodeAt(0));
+document.getElementById('unlock-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const status=document.getElementById('status');
+  const button=event.currentTarget.querySelector('button');
+  button.disabled=true; status.textContent='لحظة، أفتح الهدية…';
+  try{
+    const response=await fetch('./vault.json',{cache:'no-store'});
+    if(!response.ok) throw new Error('vault');
+    const vault=await response.json();
+    const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(document.getElementById('password').value),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:decodeBase64(vault.salt),iterations:vault.iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['decrypt']);
+    const encrypted=new Uint8Array([...decodeBase64(vault.ciphertext),...decodeBase64(vault.tag)]);
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:decodeBase64(vault.iv)},key,encrypted);
+    const gift=JSON.parse(new TextDecoder().decode(plain));
+    const page=new DOMParser().parseFromString(gift.html,'text/html');
+    page.querySelectorAll('img').forEach(image=>{const name=image.getAttribute('src').split('/').pop();if(gift.images[name])image.src=`data:image/jpeg;base64,${gift.images[name]}`;});
+    document.open();document.write('<!doctype html>'+page.documentElement.outerHTML);document.close();
+  }catch(error){status.textContent='كلمة السر غير صحيحة، جرّبي مرة أخرى.';button.disabled=false;document.getElementById('password').focus();}
+});
+</script>
+</body>
+</html>
+
